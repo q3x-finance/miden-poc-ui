@@ -133,3 +133,22 @@ export async function deployAccount(isPublic: boolean) {
 
   return account;
 }
+
+export async function deployFaucet(
+  symbol: string,
+  decimals: number,
+  maxSupply: number
+) {
+  const client = await WebClient.createClient(nodeEndpoint);
+  await client.syncState();
+
+  const faucet = await client.newFaucet(
+    AccountStorageMode.public(),
+    false,
+    symbol,
+    decimals,
+    BigInt(maxSupply)
+  );
+
+  return faucet.id().toString();
+}
