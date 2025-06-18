@@ -8,7 +8,7 @@ import {
   Word,
   Felt,
 } from "@demox-labs/miden-sdk";
-import { WebClient } from "@demox-labs/miden-sdk";
+import toast from "react-hot-toast";
 
 export function buildP2IDNote(
   sender: AccountId,
@@ -32,23 +32,4 @@ export function buildP2IDNote(
       new Felt(BigInt(0))
     )
   );
-}
-
-export async function serializeNote(
-  note: Note,
-  client: WebClient
-): Promise<string> {
-  // Use the WebClient's exportNote method to serialize the note
-  const noteId = note.id().toString();
-  const serialized = await client.exportNote(noteId, "base64");
-  return serialized;
-}
-
-export async function deserializeNote(
-  encoded: string,
-  client: WebClient
-): Promise<Note> {
-  // Use the WebClient's importNote method to deserialize the note
-  const note = await client.importNote(encoded);
-  return note;
 }

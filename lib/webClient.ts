@@ -7,6 +7,7 @@ import {
   FungibleAsset,
   OutputNotesArray,
   NoteType,
+  AccountStorageMode,
 } from "@demox-labs/miden-sdk";
 import { buildP2IDNote } from "./utils";
 
@@ -63,13 +64,9 @@ export async function batchTransfer(
       );
     })
   );
-  console.log("HALO");
   const client = await WebClient.createClient(nodeEndpoint);
   await client.syncState();
 
-  // fetch and cache account
-
-  // build transaction request
   const transactionRequest = new TransactionRequestBuilder()
     .withOwnOutputNotes(outputNotes)
     .build();
@@ -81,4 +78,58 @@ export async function batchTransfer(
   await client.submitTransaction(txResult);
 
   return txResult.executedTransaction().id().toHex();
+}
+
+export async function consumeAllNotes(noteIds: string[], accountId: string) {
+  const client = await WebClient.createClient(nodeEndpoint);
+  await client.syncState();
+
+  const consumeTxRequest = client.newConsumeTransactionRequest(noteIds);
+
+  const txResult = await client.newTransaction(
+    AccountId.fromHex(accountId),
+    consumeTxRequest
+  );
+  await client.submitTransaction(txResult);
+
+  const txId = txResult.executedTransaction().id().toHex();
+  return txId;
+}
+
+export async function mintToken(
+  accountId: string,
+  faucetId: string,
+  amount: number
+) {
+  const client = await WebClient.createClient(nodeEndpoint);
+  await client.syncState();
+
+  // Create mint transaction request
+  const mintTxRequest = client.newMintTransactionRequest(
+    AccountId.fromHex(accountId),
+    AccountId.fromHex(faucetId),
+    NoteType.Public,
+    BigInt(amount)
+  );
+
+  // Submit the transaction
+  const txResult = await client.newTransaction(
+    AccountId.fromHex(faucetId),
+    mintTxRequest
+  );
+  await client.submitTransaction(txResult);
+  const txId = txResult.executedTransaction().id().toHex();
+  return txId;
+}
+
+export async function deployAccount(isPublic: boolean) {
+  const client = await WebClient.createClient(nodeEndpoint);
+  await client.syncState();
+
+  const account = await client.newWallet(
+    isPublic ? AccountStorageMode.public() : AccountStorageMode.private(),
+    true
+  );
+
+  return account;
 }

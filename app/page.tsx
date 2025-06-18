@@ -1,11 +1,8 @@
 "use client";
 
-import { useState, useEffect, useMemo, useRef } from "react";
+import { useState, useEffect, useRef } from "react";
 import Image from "next/image";
-
 import { useWallet } from "@demox-labs/miden-wallet-adapter-react";
-
-import { TridentWalletAdapter } from "@demox-labs/miden-wallet-adapter-trident";
 import {
   AccountId,
   NoteType,
@@ -15,48 +12,28 @@ import {
   StorageSlot,
 } from "@demox-labs/miden-sdk";
 import "@demox-labs/miden-wallet-adapter-reactui/styles.css";
-import { getAccountAssets, Asset, batchTransfer } from "@/lib/webClient";
+import {
+  getAccountAssets,
+  Asset,
+  batchTransfer,
+  consumeAllNotes,
+  mintToken,
+  deployAccount,
+} from "@/lib/webClient";
 import toast from "react-hot-toast";
 import {
   WebClient,
   AccountStorageMode,
-  AccountHeader,
   AccountBuilder,
   AccountComponent,
-  Assembler,
-  Library,
   RpoDigest,
   Word,
   TransactionKernel,
-  AuthSecretKey,
   SecretKey,
 } from "@demox-labs/miden-sdk";
 
 const nodeEndpoint = "https://rpc.testnet.miden.io:443";
 // const nodeEndpoint = "http://0.0.0.0:57291";
-
-// Mock data for address book - replace with actual data fetching
-const mockAddressBook = [
-  { name: "Account 2", address: "0x137dd7f3944e5b1000005d11e6b2f8" },
-];
-
-// Mock data for consumable notes - replace with actual data fetching
-const mockNotes = [
-  {
-    id: "1",
-    sender: "0x1234...5678",
-    asset: { address: "0x1234...5678", amount: "10.00" },
-    timestamp: "2024-03-20T10:00:00Z",
-    status: "pending",
-  },
-  {
-    id: "2",
-    sender: "0x8765...4321",
-    asset: { address: "0x8765...4321", amount: "5.00" },
-    timestamp: "2024-03-20T09:30:00Z",
-    status: "pending",
-  },
-];
 
 type Tab = "send" | "addressbook" | "notes" | "faucet";
 
@@ -71,16 +48,13 @@ export default function Home() {
   const [isPrivate, setIsPrivate] = useState(false);
   const [recipients, setRecipients] = useState([{ address: "", amount: "" }]);
   const [portfolio, setPortfolio] = useState<Asset[]>([]);
-  const [addressBook, setAddressBook] = useState(mockAddressBook);
-  const [notes, setNotes] = useState(mockNotes);
+  const [addressBook, setAddressBook] = useState<any[]>([]);
   const [activeTab, setActiveTab] = useState<Tab>("send");
   const [newContact, setNewContact] = useState({ name: "", address: "" });
   const [showAddressBook, setShowAddressBook] = useState(false);
   const [activeInputIndex, setActiveInputIndex] = useState<number | null>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
-  const [isConsuming, setIsConsuming] = useState(false);
   const [isLoadingPortfolio, setIsLoadingPortfolio] = useState(false);
-  const { publicKey, wallet } = useWallet();
   const [isSending, setIsSending] = useState(false);
   const [newFaucet, setNewFaucet] = useState({
     symbol: "MID",
@@ -108,6 +82,25 @@ export default function Home() {
   const [consumableNotes, setConsumableNotes] = useState<any[]>([]);
   const [isLoadingNotes, setIsLoadingNotes] = useState(false);
 
+  const toastWithTxId = (txId: string) => {
+    toast.dismiss();
+    const txUrl = `https://testnet.midenscan.com/tx/${txId}`;
+
+    return toast.success(
+      <div>
+        <p>Notes consumed successfully</p>
+        <a
+          href={txUrl}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="text-indigo-500 hover:text-indigo-600 underline mt-1 inline-block"
+        >
+          View on MidenScan
+        </a>
+      </div>
+    );
+  };
+
   const addRecipient = () => {
     setRecipients([...recipients, { address: "", amount: "" }]);
   };
@@ -129,7 +122,6 @@ export default function Home() {
   const handleSend = async () => {
     if (!selectedAccount) return toast.error("Please select an account");
 
-    // Validate inputs
     const validRecipients = recipients.filter((r) => r.address && r.amount);
     if (validRecipients.length === 0) {
       toast.error("No valid recipients");
@@ -148,31 +140,14 @@ export default function Home() {
         amount: Number(r.amount),
         faucet: AccountId.fromHex(batchFaucetId),
       }));
+      toast.loading("Sending transactions...");
 
       const txId = await batchTransfer(
         AccountId.fromHex(selectedAccount),
         transferRequests,
         isPrivate
       );
-      console.log("Transaction successful:", txId);
-      const txUrl = `https://testnet.midenscan.com/tx/${txId}`;
-      const toastId = toast.loading("Sending transactions...");
-      toast.success(
-        <div>
-          <p>Notes consumed successfully</p>
-          <a
-            href={txUrl}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="text-indigo-500 hover:text-indigo-600 underline mt-1 inline-block"
-          >
-            View on MidenScan
-          </a>
-        </div>,
-        { id: toastId }
-      );
-
-      // Clear the form after successful transfer
+      toastWithTxId(txId);
       setRecipients([{ address: "", amount: "" }]);
     } catch (error) {
       console.error("Error sending transactions:", error);
@@ -236,57 +211,22 @@ export default function Home() {
       return;
     }
 
-    const toastId = toast.loading("Consuming notes...");
+    toast.loading("Consuming notes...");
     try {
-      const client = await WebClient.createClient(nodeEndpoint);
-      await client.syncState();
-
       const noteIds = consumableNotes.map((note) =>
         note.inputNoteRecord().id().toString()
       );
-      console.log(noteIds);
-      // Create consume transaction request
-      const consumeTxRequest = client.newConsumeTransactionRequest(noteIds);
+      const txId = await consumeAllNotes(noteIds, selectedAccount);
+      toastWithTxId(txId);
 
-      // Submit the transaction
-      const txResult = await client.newTransaction(
-        AccountId.fromHex(selectedAccount),
-        consumeTxRequest
-      );
-      await client.submitTransaction(txResult);
-
-      const txId = txResult.executedTransaction().id().toHex();
-      const txUrl = `https://testnet.midenscan.com/tx/${txId}`;
-
-      toast.success(
-        <div>
-          <p>Notes consumed successfully</p>
-          <a
-            href={txUrl}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="text-indigo-500 hover:text-indigo-600 underline mt-1 inline-block"
-          >
-            View on MidenScan
-          </a>
-        </div>,
-        { id: toastId }
-      );
-
-      // Refresh portfolio and consumable notes
       await fetchPortfolio();
       await getConsumableNotes();
     } catch (error) {
       console.error("Error consuming notes:", error);
       toast.error(
-        error instanceof Error ? error.message : "Failed to consume notes",
-        { id: toastId }
+        error instanceof Error ? error.message : "Failed to consume notes"
       );
     }
-  };
-
-  const formatDate = (dateString: string) => {
-    return new Date(dateString).toLocaleString();
   };
 
   useEffect(() => {
@@ -342,7 +282,6 @@ export default function Home() {
         BigInt(newFaucet.maxSupply)
       );
 
-      // Add the new faucet to the state
       setDeployedFaucets([
         ...deployedFaucets,
         {
@@ -356,7 +295,6 @@ export default function Home() {
       toast.dismiss();
       toast.success(`Faucet deployed: ${faucet.id().toString()}`);
 
-      // Clear the form
       setNewFaucet({
         symbol: "MID",
         decimals: "8",
@@ -389,48 +327,13 @@ export default function Home() {
 
     const toastId = toast.loading("Minting token...");
     try {
-      const client = await WebClient.createClient(nodeEndpoint);
-      await client.syncState();
-
-      const faucet = deployedFaucets.find((f) => f.id === selectedFaucet);
-      if (!faucet) {
-        throw new Error("Selected faucet not found");
-      }
-
-      // Create mint transaction request
-      const mintTxRequest = client.newMintTransactionRequest(
-        AccountId.fromHex(selectedAccount),
-        AccountId.fromHex(selectedFaucet),
-        NoteType.Public,
-        BigInt(mintAmount)
+      const txId = await mintToken(
+        selectedAccount,
+        selectedFaucet,
+        Number(mintAmount)
       );
-
-      // Submit the transaction
-      const txResult = await client.newTransaction(
-        AccountId.fromHex(selectedFaucet),
-        mintTxRequest
-      );
-      await client.submitTransaction(txResult);
-
-      const txId = txResult.executedTransaction().id().toHex();
-      const txUrl = `https://testnet.midenscan.com/tx/${txId}`;
-
-      toast.success(
-        <div>
-          <p>Token minted successfully</p>
-          <a
-            href={txUrl}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="text-indigo-500 hover:text-indigo-600 underline mt-1 inline-block"
-          >
-            View on MidenScan
-          </a>
-        </div>,
-        { id: toastId }
-      );
+      toastWithTxId(txId);
       setMintAmount("");
-      // Refresh the portfolio to show updated balances
       await fetchPortfolio();
     } catch (error) {
       console.error("Error minting token:", error);
@@ -445,17 +348,8 @@ export default function Home() {
     try {
       setIsDeployingAccount(true);
       toast.loading("Deploying account...");
-      const client = await WebClient.createClient(nodeEndpoint);
-      await client.syncState();
+      const account = await deployAccount(newAccount.isPublic);
 
-      const account = await client.newWallet(
-        newAccount.isPublic
-          ? AccountStorageMode.public()
-          : AccountStorageMode.private(),
-        true
-      );
-      await client.syncState();
-      // Add the new account to the state
       setDeployedAccounts([
         ...deployedAccounts,
         {
@@ -465,7 +359,6 @@ export default function Home() {
         },
       ]);
 
-      // Add to address book
       setAddressBook([
         ...addressBook,
         {
@@ -477,7 +370,6 @@ export default function Home() {
       toast.dismiss();
       toast.success(`Account deployed: ${account.id().toString()}`);
 
-      // Clear the form
       setNewAccount({ name: "", isPublic: true });
     } catch (error) {
       toast.dismiss();
@@ -529,12 +421,10 @@ export default function Home() {
       ).withSupportsAllTypes();
 
       // Auth component
-
       let secretKey = SecretKey.withRng(walletSeed);
       let authComponent = AccountComponent.createAuthComponent(secretKey);
 
       // Building account
-
       let normalAccount = new AccountBuilder(walletSeed)
         .withComponent(authComponent)
         .storageMode(AccountStorageMode.public())
