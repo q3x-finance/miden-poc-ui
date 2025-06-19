@@ -1,19 +1,24 @@
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import { Recipient, Faucet } from "../types";
 import toast from "react-hot-toast";
-import { batchTransfer } from "@/lib/webClient";
-import { AccountId } from "@demox-labs/miden-sdk";
+import {
+  batchTransfer,
+  getAccountAssets,
+  getAccountId,
+} from "@/lib/midenClient";
 
 interface SendProps {
   selectedAccount: string | null;
   deployedFaucets: Faucet[];
   addressBook: { name: string; address: string }[];
+  fetchPortfolio?: () => Promise<void>;
 }
 
 export default function Send({
   selectedAccount,
   deployedFaucets,
   addressBook,
+  fetchPortfolio,
 }: SendProps) {
   const [isPrivate, setIsPrivate] = useState(false);
   const [recipients, setRecipients] = useState<Recipient[]>([
@@ -70,6 +75,7 @@ export default function Send({
 
     setIsSending(true);
     try {
+      const AccountId = await getAccountId();
       const transferRequests = validRecipients.map((r) => ({
         recipient: AccountId.fromHex(r.address),
         amount: Number(r.amount),
@@ -97,6 +103,11 @@ export default function Send({
         </div>
       );
       setRecipients([{ address: "", amount: "" }]);
+
+      // update balance
+      if (fetchPortfolio) {
+        await fetchPortfolio();
+      }
     } catch (error) {
       console.error("Error sending transactions:", error);
       toast.error("Error sending transactions");
@@ -104,6 +115,23 @@ export default function Send({
       setIsSending(false);
     }
   };
+
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (
+        dropdownRef.current &&
+        !dropdownRef.current.contains(event.target as Node)
+      ) {
+        setShowAddressBook(false);
+        setActiveInputIndex(null);
+      }
+    };
+
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+    };
+  }, []);
 
   return (
     <section className="w-full bg-white/90 dark:bg-slate-800/90 backdrop-blur-md rounded-2xl shadow-2xl p-8">

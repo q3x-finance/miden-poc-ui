@@ -19,14 +19,24 @@ export interface Asset {
 }
 
 export interface TransferRequest {
-  recipient: AccountId;
+  recipient: any;
   amount: number;
-  faucet: AccountId;
+  faucet: any;
 }
 
-export async function getAccountAssets(accountId: AccountId): Promise<Asset[]> {
-  const client = await WebClient.createClient(nodeEndpoint);
-  await client.syncState();
+let client: any = null;
+
+async function getClient() {
+  if (!client) {
+    const { WebClient } = await import("@demox-labs/miden-sdk");
+    client = await WebClient.createClient(nodeEndpoint);
+    await client.syncState();
+  }
+  return client;
+}
+
+export async function getAccountAssets(accountId: any): Promise<Asset[]> {
+  const client = await getClient();
 
   let account = await client.getAccount(accountId);
 
@@ -40,32 +50,36 @@ export async function getAccountAssets(accountId: AccountId): Promise<Asset[]> {
   }
 
   // read account assets
-  const assets: FungibleAsset[] = account.vault().fungibleAssets();
-  return assets.map((asset: FungibleAsset) => ({
+  const assets: any[] = account.vault().fungibleAssets();
+  return assets.map((asset: any) => ({
     tokenAddress: asset.faucetId().toString(),
     amount: asset.amount().toString(),
   }));
 }
 
 export async function batchTransfer(
-  sender: AccountId,
+  sender: any,
   request: TransferRequest[],
   isPrivate: boolean = false
 ) {
+  const client = await getClient();
+  const { OutputNotesArray, TransactionRequestBuilder, NoteType } =
+    await import("@demox-labs/miden-sdk");
+
   // build a list of  output notes array
   const outputNotes = new OutputNotesArray(
-    request.map((r) => {
-      return buildP2IDNote(
-        sender,
-        r.recipient,
-        r.faucet,
-        r.amount,
-        isPrivate ? NoteType.Private : NoteType.Public
-      );
-    })
+    await Promise.all(
+      request.map(async (r) => {
+        return await buildP2IDNote(
+          sender,
+          r.recipient,
+          r.faucet,
+          r.amount,
+          isPrivate ? NoteType.Private : NoteType.Public
+        );
+      })
+    )
   );
-  const client = await WebClient.createClient(nodeEndpoint);
-  await client.syncState();
 
   const transactionRequest = new TransactionRequestBuilder()
     .withOwnOutputNotes(outputNotes)
@@ -81,13 +95,12 @@ export async function batchTransfer(
 }
 
 export async function consumeAllNotes(noteIds: string[], accountId: string) {
-  const client = await WebClient.createClient(nodeEndpoint);
-  await client.syncState();
+  const client = await getClient();
 
   const consumeTxRequest = client.newConsumeTransactionRequest(noteIds);
 
   const txResult = await client.newTransaction(
-    AccountId.fromHex(accountId),
+    await getAccountId(accountId),
     consumeTxRequest
   );
   await client.submitTransaction(txResult);
@@ -101,8 +114,8 @@ export async function mintToken(
   faucetId: string,
   amount: number
 ) {
-  const client = await WebClient.createClient(nodeEndpoint);
-  await client.syncState();
+  const client = await getClient();
+  const { AccountId, NoteType } = await import("@demox-labs/miden-sdk");
 
   // Create mint transaction request
   const mintTxRequest = client.newMintTransactionRequest(
@@ -123,8 +136,8 @@ export async function mintToken(
 }
 
 export async function deployAccount(isPublic: boolean) {
-  const client = await WebClient.createClient(nodeEndpoint);
-  await client.syncState();
+  const client = await getClient();
+  const { AccountStorageMode } = await import("@demox-labs/miden-sdk");
 
   const account = await client.newWallet(
     isPublic ? AccountStorageMode.public() : AccountStorageMode.private(),
@@ -139,8 +152,8 @@ export async function deployFaucet(
   decimals: number,
   maxSupply: number
 ) {
-  const client = await WebClient.createClient(nodeEndpoint);
-  await client.syncState();
+  const client = await getClient();
+  const { AccountStorageMode } = await import("@demox-labs/miden-sdk");
 
   const faucet = await client.newFaucet(
     AccountStorageMode.public(),
@@ -151,4 +164,9 @@ export async function deployFaucet(
   );
 
   return faucet.id().toString();
+}
+
+async function getAccountId(accountId: string) {
+  const { AccountId } = await import("@demox-labs/miden-sdk");
+  return AccountId.fromHex(accountId);
 }

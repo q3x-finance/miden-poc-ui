@@ -1,22 +1,23 @@
-import {
-  AccountId,
-  FungibleAsset,
-  OutputNote,
-  Note,
-  NoteAssets,
-  NoteType,
-  Word,
-  Felt,
-} from "@demox-labs/miden-sdk";
 import toast from "react-hot-toast";
 
-export function buildP2IDNote(
-  sender: AccountId,
-  receiver: AccountId,
-  faucet: AccountId,
+export async function buildP2IDNote(
+  sender: any,
+  receiver: any,
+  faucet: any,
   amount: number,
-  noteType: NoteType = NoteType.Public
+  noteType: any
 ) {
+  const {
+    AccountId,
+    FungibleAsset,
+    OutputNote,
+    Note,
+    NoteAssets,
+    NoteType: NoteTypeEnum,
+    Word,
+    Felt,
+  } = await import("@demox-labs/miden-sdk");
+
   return OutputNote.full(
     Note.createP2IDNote(
       sender,

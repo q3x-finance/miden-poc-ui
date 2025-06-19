@@ -1,7 +1,6 @@
 import { useState } from "react";
-import { FungibleAsset, WebClient, AccountId } from "@demox-labs/miden-sdk";
 import toast from "react-hot-toast";
-import { consumeAllNotes } from "@/lib/webClient";
+import { consumeAllNotes, getAccountId } from "@/lib/midenClient";
 import { nodeEndpoint } from "@/lib/constants";
 
 interface NotesProps {
@@ -24,6 +23,8 @@ export default function Notes({
 
     setIsLoadingNotes(true);
     try {
+      const { WebClient } = await import("@demox-labs/miden-sdk");
+      const AccountId = await getAccountId();
       const client = await WebClient.createClient(nodeEndpoint);
       await client.syncState();
 
@@ -34,7 +35,7 @@ export default function Notes({
       setConsumableNotes(notes);
     } catch (error) {
       console.error("Error fetching consumable notes:", error);
-      toast.error("Failed to fetch consumable notes");
+      toast.error("Failed to fetch consumable notes, please try again");
     } finally {
       setIsLoadingNotes(false);
     }
@@ -285,44 +286,40 @@ export default function Notes({
                           No fungible assets
                         </p>
                       ) : (
-                        assets.map(
-                          (asset: FungibleAsset, assetIndex: number) => (
-                            <div
-                              key={assetIndex}
-                              className="bg-slate-50 dark:bg-slate-700/50 rounded p-2 flex justify-between items-center"
-                            >
-                              <div>
-                                <p className="text-sm font-medium text-slate-700 dark:text-slate-300">
-                                  Faucet ID: {asset.faucetId().toString()}
-                                </p>
-                                <p className="text-sm text-slate-500 dark:text-slate-400">
-                                  Amount: {asset.amount().toString()}
-                                </p>
-                              </div>
-                              <button
-                                onClick={() => {
-                                  navigator.clipboard.writeText(
-                                    asset.faucetId().toString()
-                                  );
-                                  toast.success(
-                                    "Faucet ID copied to clipboard"
-                                  );
-                                }}
-                                className="p-1 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"
-                              >
-                                <svg
-                                  xmlns="http://www.w3.org/2000/svg"
-                                  className="h-4 w-4"
-                                  viewBox="0 0 20 20"
-                                  fill="currentColor"
-                                >
-                                  <path d="M8 3a1 1 0 011-1h2a1 1 0 110 2H9a1 1 0 01-1-1z" />
-                                  <path d="M6 3a2 2 0 00-2 2v11a2 2 0 002 2h8a2 2 0 002-2V5a2 2 0 00-2-2 3 3 0 01-3 3H9a3 3 0 01-3-3z" />
-                                </svg>
-                              </button>
+                        assets.map((asset: any, assetIndex: number) => (
+                          <div
+                            key={assetIndex}
+                            className="bg-slate-50 dark:bg-slate-700/50 rounded p-2 flex justify-between items-center"
+                          >
+                            <div>
+                              <p className="text-sm font-medium text-slate-700 dark:text-slate-300">
+                                Faucet ID: {asset.faucetId().toString()}
+                              </p>
+                              <p className="text-sm text-slate-500 dark:text-slate-400">
+                                Amount: {asset.amount().toString()}
+                              </p>
                             </div>
-                          )
-                        )
+                            <button
+                              onClick={() => {
+                                navigator.clipboard.writeText(
+                                  asset.faucetId().toString()
+                                );
+                                toast.success("Faucet ID copied to clipboard");
+                              }}
+                              className="p-1 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"
+                            >
+                              <svg
+                                xmlns="http://www.w3.org/2000/svg"
+                                className="h-4 w-4"
+                                viewBox="0 0 20 20"
+                                fill="currentColor"
+                              >
+                                <path d="M8 3a1 1 0 011-1h2a1 1 0 110 2H9a1 1 0 01-1-1z" />
+                                <path d="M6 3a2 2 0 00-2 2v11a2 2 0 002 2h8a2 2 0 002-2V5a2 2 0 00-2-2 3 3 0 01-3 3H9a3 3 0 01-3-3z" />
+                              </svg>
+                            </button>
+                          </div>
+                        ))
                       )}
                     </div>
                   </div>

@@ -1,19 +1,7 @@
 import { useState } from "react";
 import { Account, Contact } from "../types";
 import toast from "react-hot-toast";
-import { deployAccount } from "@/lib/webClient";
-import {
-  AccountBuilder,
-  AccountComponent,
-  AccountStorageMode,
-  Felt,
-  // RpoDigest,
-  // SecretKey,
-  StorageMap,
-  StorageSlot,
-  TransactionKernel,
-  Word,
-} from "@demox-labs/miden-sdk";
+import { deployAccount } from "@/lib/midenClient";
 
 interface AccountManagementProps {
   deployedAccounts: Account[];

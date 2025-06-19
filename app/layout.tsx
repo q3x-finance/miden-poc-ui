@@ -1,16 +1,7 @@
-"use client";
-
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
-
-import { ReactNode, useMemo } from "react";
-import { WalletProvider } from "@demox-labs/miden-wallet-adapter-react";
-import { WalletModalProvider } from "@demox-labs/miden-wallet-adapter-reactui";
-import { TridentWalletAdapter } from "@demox-labs/miden-wallet-adapter-trident";
-import { useWallet } from "@demox-labs/miden-wallet-adapter-react";
-import "@demox-labs/miden-wallet-adapter-reactui/styles.css";
-import { Toaster } from "react-hot-toast";
+import ClientLayout from "./components/ClientLayout";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -21,53 +12,24 @@ const geistMono = Geist_Mono({
   subsets: ["latin"],
 });
 
+export const metadata: Metadata = {
+  title: "Miden Playground",
+  description: "A modern wallet interface for the Miden blockchain",
+  icons: {
+    icon: "/favicon.ico",
+  },
+};
+
 export default function RootLayout({
   children,
 }: Readonly<{ children: React.ReactNode }>) {
-  const wallets = useMemo(
-    () => [
-      new TridentWalletAdapter({
-        appName: "Q3x",
-      }),
-    ],
-    []
-  );
-
   return (
     <html lang="en">
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
       >
-        <WalletProvider wallets={wallets} autoConnect>
-          <WalletModalProvider>
-            <Toaster />
-            <PublicKeyDisplay />
-            {children}
-          </WalletModalProvider>
-        </WalletProvider>
+        <ClientLayout>{children}</ClientLayout>
       </body>
     </html>
   );
-}
-
-function PublicKeyDisplay() {
-  const { publicKey } = useWallet();
-  return publicKey ? (
-    <div
-      style={{
-        position: "fixed",
-        bottom: 8,
-        right: 8,
-        background: "rgba(0,0,0,0.6)",
-        color: "#fff",
-        padding: "0.5rem 1rem",
-        borderRadius: 4,
-        fontSize: "0.875rem",
-        fontFamily: "monospace",
-        zIndex: 1000,
-      }}
-    >
-      Connected: {publicKey}
-    </div>
-  ) : null;
 }

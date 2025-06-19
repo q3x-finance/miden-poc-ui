@@ -1,8 +1,6 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { AccountId } from "@demox-labs/miden-sdk";
-import { getAccountAssets } from "@/lib/webClient";
 import type { Tab, Faucet, Contact, Account } from "./types";
 import AccountManagement from "./components/AccountManagement";
 import Portfolio from "./components/Portfolio";
@@ -10,64 +8,65 @@ import Send from "./components/Send";
 import AddressBook from "./components/AddressBook";
 import Notes from "./components/Notes";
 import FaucetComponent from "./components/Faucet";
+import Logo from "./components/Logo";
+
+// Disable static generation for this page
+export const dynamic = "force-dynamic";
 
 export default function Home() {
   const [selectedTab, setSelectedTab] = useState<Tab>("send");
   const [selectedAccount, setSelectedAccount] = useState<string | null>(null);
-  const [deployedAccounts, setDeployedAccounts] = useState<Account[]>(() => {
-    if (typeof window !== "undefined") {
-      const saved = localStorage.getItem("deployedAccounts");
-      return saved ? JSON.parse(saved) : [];
-    }
-    return [];
-  });
-  const [deployedFaucets, setDeployedFaucets] = useState<Faucet[]>(() => {
-    if (typeof window !== "undefined") {
-      const saved = localStorage.getItem("deployedFaucets");
-      return saved ? JSON.parse(saved) : [];
-    }
-    return [];
-  });
-  const [addressBook, setAddressBook] = useState<Contact[]>(() => {
-    if (typeof window !== "undefined") {
-      const saved = localStorage.getItem("addressBook");
-      return saved ? JSON.parse(saved) : [];
-    }
-    return [];
-  });
+  const [deployedAccounts, setDeployedAccounts] = useState<Account[]>([]);
+  const [deployedFaucets, setDeployedFaucets] = useState<Faucet[]>([]);
+  const [addressBook, setAddressBook] = useState<Contact[]>([]);
   const [portfolio, setPortfolio] = useState<any[]>([]);
   const [consumableNotes, setConsumableNotes] = useState<any[]>([]);
   const [isLoadingPortfolio, setIsLoadingPortfolio] = useState(false);
+  const [isClient, setIsClient] = useState(false);
 
-  // Save to localStorage whenever deployedAccounts changes
+  // Initialize state from localStorage only on client side
   useEffect(() => {
-    if (typeof window !== "undefined") {
+    setIsClient(true);
+    const savedAccounts = localStorage.getItem("deployedAccounts");
+    const savedFaucets = localStorage.getItem("deployedFaucets");
+    const savedAddressBook = localStorage.getItem("addressBook");
+
+    if (savedAccounts) setDeployedAccounts(JSON.parse(savedAccounts));
+    if (savedFaucets) setDeployedFaucets(JSON.parse(savedFaucets));
+    if (savedAddressBook) setAddressBook(JSON.parse(savedAddressBook));
+  }, []);
+
+  // Save to localStorage whenever state changes
+  useEffect(() => {
+    if (isClient) {
       localStorage.setItem(
         "deployedAccounts",
         JSON.stringify(deployedAccounts)
       );
     }
-  }, [deployedAccounts]);
+  }, [deployedAccounts, isClient]);
 
-  // Save to localStorage whenever deployedFaucets changes
   useEffect(() => {
-    if (typeof window !== "undefined") {
+    if (isClient) {
       localStorage.setItem("deployedFaucets", JSON.stringify(deployedFaucets));
     }
-  }, [deployedFaucets]);
+  }, [deployedFaucets, isClient]);
 
-  // Save to localStorage whenever addressBook changes
   useEffect(() => {
-    if (typeof window !== "undefined") {
+    if (isClient) {
       localStorage.setItem("addressBook", JSON.stringify(addressBook));
     }
-  }, [addressBook]);
+  }, [addressBook, isClient]);
 
   const fetchPortfolio = async () => {
-    if (!selectedAccount) return;
+    if (!selectedAccount || !isClient) return;
 
     setIsLoadingPortfolio(true);
     try {
+      const { getAccountAssets, getAccountId } = await import(
+        "@/lib/midenClient"
+      );
+      const AccountId = await getAccountId();
       const assets = await getAccountAssets(AccountId.fromHex(selectedAccount));
       setPortfolio(assets);
     } catch (error) {
@@ -78,17 +77,25 @@ export default function Home() {
   };
 
   useEffect(() => {
-    if (selectedAccount) {
+    if (selectedAccount && isClient) {
       fetchPortfolio();
     }
-  }, [selectedAccount]);
+  }, [selectedAccount, isClient]);
+
+  if (!isClient) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-indigo-100 via-purple-50 to-pink-100 dark:from-slate-900 dark:via-slate-800 dark:to-slate-900">
+        <div className="animate-spin rounded-full h-32 w-32 border-t-2 border-b-2 border-indigo-600"></div>
+      </div>
+    );
+  }
 
   return (
     <main className="min-h-screen bg-gradient-to-br from-indigo-100 via-purple-50 to-pink-100 dark:from-slate-900 dark:via-slate-800 dark:to-slate-900">
       <div className="container mx-auto px-4 py-8">
-        <h1 className="text-4xl font-bold text-center mb-8 text-slate-800 dark:text-white">
-          Miden Wallet
-        </h1>
+        <div className="mb-8">
+          <Logo />
+        </div>
 
         <AccountManagement
           selectedAccount={selectedAccount}
@@ -155,6 +162,7 @@ export default function Home() {
                 selectedAccount={selectedAccount}
                 deployedFaucets={deployedFaucets}
                 addressBook={addressBook}
+                fetchPortfolio={fetchPortfolio}
               />
             )}
             {selectedTab === "addressbook" && (
